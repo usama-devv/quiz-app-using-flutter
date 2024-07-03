@@ -1,7 +1,7 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:quiz_app/const/colors.dart';
+import 'package:quiz_app/screens/result_screen.dart';
 import 'package:quiz_app/services/api_services.dart';
 
 class QuizScreen extends StatefulWidget {
@@ -12,6 +12,14 @@ class QuizScreen extends StatefulWidget {
 }
 
 class _QuizScreenState extends State<QuizScreen> {
+  late Future quiz;
+  int seconds = 60;
+  var currentIndexOfQuestion = 0;
+  Timer? timer;
+  bool isLoading = false;
+  var optionList = [];
+  int correctAnswers = 0;
+  int incorrectAnswers = 0;
   @override
   void initState() {
     super.initState();
@@ -24,7 +32,6 @@ class _QuizScreenState extends State<QuizScreen> {
     Colors.white,
     Colors.white,
     Colors.white,
-    Colors.white,
   ];
 
   resetColor() {
@@ -33,16 +40,11 @@ class _QuizScreenState extends State<QuizScreen> {
       Colors.white,
       Colors.white,
       Colors.white,
-      Colors.white,
     ];
   }
 
-  late Future quiz;
-  int seconds = 60;
-  var currentIndexOfQuestion = 0;
-  Timer? timer;
-  bool isLoading = false;
-  var optionList = [];
+
+
   startTimer() {
     timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       setState(() {
@@ -56,12 +58,14 @@ class _QuizScreenState extends State<QuizScreen> {
   }
 
   gotoNextQuestion() {
-    isLoading = false;
-    resetColor();
-    currentIndexOfQuestion++;
-    timer!.cancel();
-    seconds = 60;
-    startTimer();
+    setState(() {
+      isLoading = false;
+      resetColor();
+      currentIndexOfQuestion++;
+      timer!.cancel();
+      seconds = 60;
+      startTimer();
+    });
   }
 
   @override
@@ -72,18 +76,34 @@ class _QuizScreenState extends State<QuizScreen> {
         height: double.infinity,
         padding: const EdgeInsets.all(15),
         decoration: const BoxDecoration(
-            gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          colors: [
-            Colors.blue,
-            blue,
-            darkBlue,
-          ],
-        )),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            colors: [
+              Colors.blue,
+              blue,
+              darkBlue,
+            ],
+          ),
+        ),
         child: FutureBuilder(
           future: quiz,
           builder: (BuildContext context, AsyncSnapshot snapshot) {
-            if (snapshot.hasData) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation(Colors.white),
+                ),
+              );
+            } else if (snapshot.hasError) {
+              return Center(
+                child: Text(
+                  "Error: ${snapshot.error}",
+                  style: const TextStyle(
+                    color: Colors.white,
+                  ),
+                ),
+              );
+            } else if (snapshot.hasData) {
               var data = snapshot.data["results"];
               if (isLoading == false) {
                 optionList = data[currentIndexOfQuestion]['incorrect_answers'];
@@ -184,16 +204,31 @@ class _QuizScreenState extends State<QuizScreen> {
                                   if (correctAnswer.toString() ==
                                       optionList[index].toString()) {
                                     optionColor[index] = Colors.green;
+                                    correctAnswers++;
                                   } else {
                                     optionColor[index] = Colors.red;
+                                    incorrectAnswers++;
                                   }
-                                  if (currentIndexOfQuestion < data - 1) {
-                                    Future.delayed(const Duration(seconds: 1),
-                                        () {
-                                      gotoNextQuestion();
-                                    });
+                                  if (currentIndexOfQuestion <
+                                      data.length - 1) {
+                                    Future.delayed(
+                                      const Duration(milliseconds: 400),
+                                      () {
+                                        gotoNextQuestion();
+                                      },
+                                    );
                                   } else {
                                     timer!.cancel();
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => ResultScreen(
+                                          correctAnswers,
+                                          incorrectAnswers,
+                                          currentIndexOfQuestion + 1,
+                                        ),
+                                      ),
+                                    );
                                   }
                                 },
                               );
@@ -222,9 +257,7 @@ class _QuizScreenState extends State<QuizScreen> {
               );
             } else {
               return const Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation(Colors.white),
-                ),
+                child: Text("No data found!"),
               );
             }
           },
